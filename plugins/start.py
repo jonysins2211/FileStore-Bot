@@ -105,9 +105,31 @@ async def start_command(client: Client, message: Message):
             else:
                 base64_string = basic
 
-            if not is_premium and user_id != OWNER_ID and not basic.startswith("yu3elk"):
-                await short_url(client, message, base64_string)
-                return
+            verify_status = await db.get_verify_status(user_id)
+
+if verify_status['is_verified']:
+    if (time.time() - verify_status['verified_time']) > VERIFY_EXPIRE:
+        await db.update_verify_status(user_id, is_verified=False)
+
+verify_status = await db.get_verify_status(user_id)
+
+if not verify_status['is_verified'] and not is_premium and user_id != OWNER_ID:
+    token = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+    await db.update_verify_status(user_id, verify_token=token)
+
+    link = await get_shortlink(
+        SHORTLINK_URL,
+        SHORTLINK_API,
+        f"https://t.me/{client.username}?start=verify_{token}"
+    )
+
+    await message.reply(
+        f"Pass the shortlink to use the bot for {get_exp_time(VERIFY_EXPIRE)}",
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton("Open Link", url=link)]]
+        )
+    )
+    return
 
         except Exception as e:
             print(f"Error processing start payload: {e}")
